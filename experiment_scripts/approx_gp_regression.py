@@ -18,7 +18,9 @@ from sklearn.cluster import KMeans
 from tqdm.auto import tqdm
 
 from trf23 import fingerprint_features as ff
+from trf23 import tanimoto_functions as tf
 from trf23.datasets import dockstring
+from trf23.dpp_inducing_init import greedy_conditional_variance_reduction_inducing_points as dppz
 from trf23.linear_gp import batch_linear_gp_predict
 from trf23.random_features.tdp import Default_TDP_Featurizer
 from trf23.random_features.tmm import TMM_ArrFeaturizer
@@ -407,6 +409,16 @@ def _fit_and_eval_svgp(
         ).fit(fp_train)
         init_inducing_points_np = kmeans.cluster_centers_
         del kmeans
+    elif args.svgp_inducing_init == "DPP":
+        if args.kernel == "T_DP":
+            _k_func = tf.batch_tdp_sim_np
+        elif args.kernel == "T_MM":
+            _k_func = tf.batch_tmm_sim_np
+        else:
+            raise NotImplementedError(args.kernel)
+        idxs = dppz(args.svgp_num_inducing_points, _k_func, fp_train, correct_matrices_interval=None)
+        init_inducing_points_np = fp_train[idxs].copy()
+        del _k_func
     else:
         raise NotImplementedError()
     time_init_inducing = time.monotonic() - t_start
